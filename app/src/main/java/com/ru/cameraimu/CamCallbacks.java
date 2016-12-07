@@ -1,6 +1,10 @@
 package com.ru.cameraimu;
 
+import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.hardware.Camera;
+import android.os.AsyncTask;
 import android.os.Environment;
 import android.util.Log;
 
@@ -50,6 +54,50 @@ public class CamCallbacks {
       try {
         FileOutputStream fos = new FileOutputStream(file);
         fos.write(data);
+        fos.close();
+      } catch (IOException e) {
+        Log.e(TAG, "recordPicture: " + e.getMessage());
+      }
+    }
+  }
+
+  public static class PreviewCallback implements Camera.PreviewCallback {
+    private MainActivity mActivity;
+
+    private final String TAG = "TAG/CameraIMU";
+
+    public PreviewCallback(MainActivity activity) { mActivity = activity; }
+
+    @Override
+    public void onPreviewFrame(byte[] data, Camera camera) {
+      final long timestampMillis = System.currentTimeMillis();
+      final int frameW = camera.getParameters().getPreviewSize().width;
+      final int frameH = camera.getParameters().getPreviewSize().height;
+      if (mActivity.NEED_RECORD && mActivity.isCapturing()) {
+        // Instantiate an AsyncTask to do the compressing and saving jobs
+        // in order to prevent blocking
+        new AsyncTask<byte[], Void, Void>() {
+          @Override
+          protected Void doInBackground(byte[]... params) {
+            byte[] data = params[0];
+            compressAndSaveAsJPEG(data, frameW, frameH, timestampMillis);
+            return null;
+          }
+        }.execute(data);
+      }
+    }
+
+    private void compressAndSaveAsJPEG(byte[] data, int w, int h, long timestampMillis) {
+      // Note: The default original data is in NV21 format
+      YuvImage img = new YuvImage(data, ImageFormat.NV21, w, h, null);
+      String filename = String.format(Locale.US, "%013d.jpg", timestampMillis);
+      File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+                           mActivity.mStorageDir + File.separator + "IMG" + File.separator + filename);
+
+      try {
+        FileOutputStream fos = new FileOutputStream(file);
+        if (!img.compressToJpeg(new Rect(0, 0, w, h), 50, fos))
+          Log.e(TAG, "compressAndSaveAsJPEG: Failed to compress image!");
         fos.close();
       } catch (IOException e) {
         Log.e(TAG, "recordPicture: " + e.getMessage());
