@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fail_to_load_imu">糟惹！沒有找到慣性測量單元硬體，初始化程式失敗囖！</string>
+    <string name="acce_accuracy_changed_to">加速規準確度變成惹：</string>
+    <string name="gyro_accuracy_changed_to">陀螺儀準確度變成惹：</string>
+    <string name="failed_to_access_external_storage">糟惹！貌似沒有寫入檔案的權限叻！</string>
+    <string name="failed_to_access_camere">糟惹！沒有找到相機，初始化程式失敗囖！</string>
+    <string name="start_capturing_msg">開始囖</string>
+    <string name="touch_back_again_to_exit">再按一次返回鍵退出軟體</string>
+    <string name="stop_capturing_msg">結束囉</string><![CDATA[
+
+
+
+    >
+
+
+
+]]>
+</resources>

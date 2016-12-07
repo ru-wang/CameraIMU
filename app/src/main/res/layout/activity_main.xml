@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                xmlns:tools="http://schemas.android.com/tools"
+                android:id="@+id/activity_main"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                tools:context="com.ru.cameraimu.MainActivity">
+
+    <FrameLayout
+        android:id="@+id/cam_layout"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentStart="true"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <TextView
+        android:id="@+id/info_view"
+        android:textColor="@color/colorFont"
+        android:background="@color/colorFontBg"
+        android:padding="@dimen/info_view_padding"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentStart="true"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <RelativeLayout
+        android:id="@+id/btn_layout"
+        android:background="@android:color/black"
+        android:layout_toEndOf="@id/cam_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <Button
+            android:id="@+id/capture_btn"
+            android:layout_width="@dimen/btn_width"
+            android:layout_height="@dimen/btn_height"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="@dimen/btn_margin_right"
+            android:layout_centerVertical="true"
+            android:onClick="onCaptureBtnClick"/>
+    </RelativeLayout>
+
+</RelativeLayout>

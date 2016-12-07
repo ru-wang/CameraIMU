@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">CameraIMU</string>
+    <string name="fail_to_load_imu">喔唷！没有找到IMU设备，初始化功能失败！</string>>
+    <string name="gyro_accuracy_changed_to">陀螺仪准确度改变：</string>
+    <string name="acce_accuracy_changed_to">加速度计准确度改变：</string>
+    <string name="failed_to_access_external_storage">喔唷！好像暂时不能写入文件呢！</string>
+    <string name="failed_to_access_camere">喔唷！你居然没有相机！</string>
+    <string name="start_capturing_msg">开始录制</string>
+    <string name="touch_back_again_to_exit">再按一次返回键退出</string>
+    <string name="stop_capturing_msg">正在停止录制</string>
+</resources>

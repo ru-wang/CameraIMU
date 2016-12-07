@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fail_to_load_imu">Oops! Seems you don\'t have IMU devices, failed to initialize!</string>
+    <string name="acce_accuracy_changed_to">"Accelerometer accuracy changed to: "</string>
+    <string name="gyro_accuracy_changed_to">"Gyroscope accuracy changed to: "</string>
+    <string name="failed_to_access_external_storage">Opps! Failed to access external storage!</string>
+    <string name="failed_to_access_camere">Oops! Seems you don\'t have a Camera, failed to initialize!</string>
+    <string name="start_capturing_msg">Start capturing</string>
+    <string name="touch_back_again_to_exit">Touch BACK again to exit</string>
+    <string name="stop_capturing_msg">Stop capturing</string>>
+</resources>
