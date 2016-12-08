@@ -174,23 +174,24 @@ public class MainActivity extends Activity {
   }
 
   public void onCaptureBtnClick(View view) {
-      if (!mIsCapturing) {
-        mIsCapturing = true;
+    if (!mIsCapturing) {
+      synchronized (mIsCapturing) { mIsCapturing = true; }
 
-        Context context = getApplicationContext();
-        Toast toast = Toast.makeText(context, R.string.start_capturing_msg, Toast.LENGTH_SHORT);
-        toast.show();
-        mCamera.takePicture(mShutter, null, mPicture);
-      } else {
-        synchronized (mIsCapturing) { mIsCapturing = false; }
-        Context context = getApplicationContext();
-        Toast toast = Toast.makeText(context, R.string.stop_capturing_msg, Toast.LENGTH_SHORT);
-        toast.show();
-        if (NEED_RECORD) {
-          mGyroListener.flushData();
-          mAcceListener.flushData();
-        }
+      Context context = getApplicationContext();
+      Toast toast = Toast.makeText(context, R.string.start_capturing_msg, Toast.LENGTH_SHORT);
+      toast.show();
+      mCamera.takePicture(mShutter, null, mPicture);
+    } else {
+      synchronized (mIsCapturing) { mIsCapturing = false; }
+
+      Context context = getApplicationContext();
+      Toast toast = Toast.makeText(context, R.string.stop_capturing_msg, Toast.LENGTH_SHORT);
+      toast.show();
+      if (NEED_RECORD) {
+        mGyroListener.flushData();
+        mAcceListener.flushData();
       }
+    }
   }
 
   private boolean isExternalStorageWritable() {
