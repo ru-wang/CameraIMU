@@ -42,7 +42,7 @@ public class CamCallbacks {
       // Take pictures continuously
       camera.startPreview();
       if (mActivity.isCapturing())
-        camera.takePicture(mActivity.getShutter(), null, mActivity.getPicture());
+        camera.takePicture(mActivity.getShutterCallback(), null, mActivity.getPictureCallback());
     }
 
     private void recordPicture(byte[] data, Camera camera, long timestampMillis) {
@@ -63,6 +63,8 @@ public class CamCallbacks {
 
   public static class PreviewCallback implements Camera.PreviewCallback {
     private MainActivity mActivity;
+    private float mCurrentFPS = 0f;
+    private int mLocalFrameCount = 0;
 
     private final String TAG = "TAG/CameraIMU";
 
@@ -83,7 +85,19 @@ public class CamCallbacks {
             compressAndSaveAsJPEG(data, frameW, frameH, timestampMillis);
             return null;
           }
-        }.execute(data);
+        }.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, data);
+      }
+
+      if (mLastTimestampMillis == -1) {
+        mCurrentFPS = 0f;
+        mLastTimestampMillis = timestampMillis;
+      } else {
+        ++mLocalFrameCount;
+        if (mLocalFrameCount == MainActivity.INFO_VIEW_UPDATE_RATE) {
+          mCurrentFPS = MainActivity.INFO_VIEW_UPDATE_RATE * 1000f / (timestampMillis - mLastTimestampMillis);
+          mLastTimestampMillis = timestampMillis;
+          mLocalFrameCount = 0;
+        }
       }
     }
 
@@ -96,12 +110,14 @@ public class CamCallbacks {
 
       try {
         FileOutputStream fos = new FileOutputStream(file);
-        if (!img.compressToJpeg(new Rect(0, 0, w, h), 50, fos))
+        if (!img.compressToJpeg(new Rect(0, 0, w, h), 95, fos))
           Log.e(TAG, "compressAndSaveAsJPEG: Failed to compress image!");
         fos.close();
       } catch (IOException e) {
         Log.e(TAG, "recordPicture: " + e.getMessage());
       }
     }
+
+    public float getCurrentFPS() { return mCurrentFPS; }
   }
 }

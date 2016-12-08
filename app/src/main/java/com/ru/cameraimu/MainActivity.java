@@ -9,6 +9,7 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
@@ -25,6 +26,7 @@ public class MainActivity extends Activity {
   public static final boolean NEED_RECORD = false;
   public static final int DEFAULT_CAPTURE_W = 640;
   public static final int DEFAULT_CAPTURE_H = 480;
+  public static final int INFO_VIEW_UPDATE_RATE = 10;
 
   public String mDateString;
   public String mStorageDir;
@@ -39,9 +41,9 @@ public class MainActivity extends Activity {
   // Camera
   private Camera mCamera;
   private Boolean mIsCapturing = false;
-  private CamCallbacks.ShutterCallback mShutter;
-  private CamCallbacks.PictureCallback mPicture;
-  private CamPreview mPreview;
+  private CamCallbacks.ShutterCallback mShutterCallback;
+  private CamCallbacks.PictureCallback mPictureCallback;
+  private CamCallbacks.PreviewCallback mPreviewCallback;
 
   // UI
   private TextView mInfoView;
@@ -89,28 +91,15 @@ public class MainActivity extends Activity {
       finish();
     }
 
-    if (NEED_RECORD) {
-      mDateString = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)).format(Calendar.getInstance().getTime());
-      mStorageDir = getResources().getString(R.string.app_name) + File.separator + mDateString;
-      File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-                           mStorageDir + File.separator + "IMG");
-      if (!file.mkdirs()) {
-        Toast toast = Toast.makeText(context, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);
-        toast.show();
-        finish();
-        return;
-      }
-    }
-
     mGyroListener = new IMUEventListener(this, IMUEventListener.TypeE.G);
     mAcceListener = new IMUEventListener(this, IMUEventListener.TypeE.A);
 
-    mPreview = new CamPreview(context, mCamera);
-    ((FrameLayout) findViewById(R.id.cam_layout)).addView(mPreview);
+    ((FrameLayout) findViewById(R.id.cam_layout)).addView(new CamPreview(context, mCamera));
     mInfoView = (TextView) findViewById(R.id.info_view);
 
-    mShutter = new CamCallbacks.ShutterCallback();
-    mPicture = new CamCallbacks.PictureCallback(this);
+    mShutterCallback = new CamCallbacks.ShutterCallback();
+    mPictureCallback = new CamCallbacks.PictureCallback(this);
+    mPreviewCallback = new CamCallbacks.PreviewCallback(this);
   }
 
   @Override
@@ -128,6 +117,12 @@ public class MainActivity extends Activity {
 
     getCameraInstance();
     setCamFeatures();
+
+    Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
+    Context context = getApplicationContext();
+    Toast toast = Toast.makeText(context, previewSize.width + " x " + previewSize.height, Toast.LENGTH_LONG);
+    toast.setGravity(Gravity.CENTER, 0, 0);
+    toast.show();
   }
 
   @Override
@@ -158,8 +153,8 @@ public class MainActivity extends Activity {
     }
   }
 
-  public CamCallbacks.ShutterCallback getShutter() { return mShutter; }
-  public CamCallbacks.PictureCallback getPicture() { return mPicture; }
+  public CamCallbacks.ShutterCallback getShutterCallback() { return mShutterCallback; }
+  public CamCallbacks.PictureCallback getPictureCallback() { return mPictureCallback; }
 
   public void printSensorInfo(long timestampNanos) {
     mInfoView.setText("Sensor Information:\n");
@@ -171,22 +166,38 @@ public class MainActivity extends Activity {
     mInfoView.append(String.format(Locale.US, "GY: %08.6f\t\tAY: %08.6f\n", gyroData.y(), acceData.y()));
     mInfoView.append(String.format(Locale.US, "GZ: %08.6f\t\tAZ: %08.6f\n", gyroData.z(), acceData.z()));
     mInfoView.append(String.format(Locale.US, "Timestamp Nanos: %d", timestampNanos));
+    if (mIsCapturing)
+      mInfoView.append(String.format(Locale.US, "\nCurrent FPS: %.2f", mPreviewCallback.getCurrentFPS()));
   }
 
   public void onCaptureBtnClick(View view) {
     if (!mIsCapturing) {
+      if (NEED_RECORD) {
+        mDateString = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)).format(Calendar.getInstance().getTime());
+        mStorageDir = getResources().getString(R.string.app_name) + File.separator + mDateString;
+        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+                             mStorageDir + File.separator + "IMG");
+        if (!file.mkdirs()) {
+          Context context = getApplicationContext();
+          Toast toast = Toast.makeText(context, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);
+          toast.show();
+          return;
+        }
+      }
+
       synchronized (mIsCapturing) { mIsCapturing = true; }
 
       Context context = getApplicationContext();
       Toast toast = Toast.makeText(context, R.string.start_capturing_msg, Toast.LENGTH_SHORT);
       toast.show();
-      mCamera.takePicture(mShutter, null, mPicture);
+      mCamera.setPreviewCallback(mPreviewCallback);
     } else {
       synchronized (mIsCapturing) { mIsCapturing = false; }
 
       Context context = getApplicationContext();
       Toast toast = Toast.makeText(context, R.string.stop_capturing_msg, Toast.LENGTH_SHORT);
       toast.show();
+      mCamera.setPreviewCallback(null);
       if (NEED_RECORD) {
         mGyroListener.flushData();
         mAcceListener.flushData();
