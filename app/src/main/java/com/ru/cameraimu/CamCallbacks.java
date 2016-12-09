@@ -15,14 +15,14 @@ import java.util.Locale;
 
 public class CamCallbacks {
 
-  private static long mLastTimestampMillis;
+  private static long mLastTimestampNanos;
 
-  static { mLastTimestampMillis = -1; }
+  static { mLastTimestampNanos = -1; }
 
   public static class ShutterCallback implements Camera.ShutterCallback {
     @Override
     public void onShutter() {
-      mLastTimestampMillis = System.currentTimeMillis();
+      mLastTimestampNanos = System.nanoTime();
     }
   }
 
@@ -35,7 +35,7 @@ public class CamCallbacks {
 
     @Override
     public void onPictureTaken(byte[] data, Camera camera) {
-      long timestampMillis = mLastTimestampMillis;
+      long timestampMillis = mLastTimestampNanos;
       if (mActivity.NEED_RECORD && mActivity.isCapturing())
         recordPicture(data, camera, timestampMillis);
 
@@ -72,7 +72,7 @@ public class CamCallbacks {
 
     @Override
     public void onPreviewFrame(byte[] data, Camera camera) {
-      final long timestampMillis = System.currentTimeMillis();
+      final long timestampNanos = System.nanoTime();
       final int frameW = camera.getParameters().getPreviewSize().width;
       final int frameH = camera.getParameters().getPreviewSize().height;
       if (mActivity.NEED_RECORD && mActivity.isCapturing()) {
@@ -82,20 +82,20 @@ public class CamCallbacks {
           @Override
           protected Void doInBackground(byte[]... params) {
             byte[] data = params[0];
-            compressAndSaveAsJPEG(data, frameW, frameH, timestampMillis);
+            compressAndSaveAsJPEG(data, frameW, frameH, timestampNanos);
             return null;
           }
         }.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, data);
       }
 
-      if (mLastTimestampMillis == -1) {
+      if (mLastTimestampNanos == -1) {
         mCurrentFPS = 0f;
-        mLastTimestampMillis = timestampMillis;
+        mLastTimestampNanos = timestampNanos;
       } else {
         ++mLocalFrameCount;
         if (mLocalFrameCount == MainActivity.INFO_VIEW_UPDATE_RATE) {
-          mCurrentFPS = MainActivity.INFO_VIEW_UPDATE_RATE * 1000f / (timestampMillis - mLastTimestampMillis);
-          mLastTimestampMillis = timestampMillis;
+          mCurrentFPS = MainActivity.INFO_VIEW_UPDATE_RATE * 1e9f / (timestampNanos - mLastTimestampNanos);
+          mLastTimestampNanos = timestampNanos;
           mLocalFrameCount = 0;
         }
       }
