@@ -23,7 +23,7 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
 
-  public static final boolean NEED_RECORD = false;
+  public static final boolean NEED_RECORD = true;
   public static final int DEFAULT_CAPTURE_W = 640;
   public static final int DEFAULT_CAPTURE_H = 480;
   public static final int INFO_VIEW_UPDATE_RATE = 10;
@@ -238,8 +238,10 @@ public class MainActivity extends Activity {
     Camera.Parameters params = mCamera.getParameters();
 
     List<String> focusModes = params.getSupportedFocusModes();
-    if (focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO))
+    if (focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
       params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+      mCamera.autoFocus(null);
+    }
     List<String> flashModes = params.getSupportedFlashModes();
     if (flashModes.contains(Camera.Parameters.FLASH_MODE_OFF))
       params.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
