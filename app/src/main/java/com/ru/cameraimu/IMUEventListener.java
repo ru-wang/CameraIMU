@@ -68,8 +68,9 @@ public class IMUEventListener implements SensorEventListener {
         FileOutputStream fos = new FileOutputStream(file);
         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fos));
         for (DataTupleT tuple : sequenceToBeSerialized)
-          writer.write(mType + " " + tuple.toString());
+          writer.write(tuple.toString());
         writer.flush();
+        writer.close();
       } catch (IOException e) {
         Log.e(TAG, "doInBackground: " + e.getMessage());
       }
