@@ -61,7 +61,7 @@ public class MainActivity extends Activity {
 
     mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
     mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-    mGyroscope = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+    mGyroscope = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE_UNCALIBRATED);
 
     if (mAccelerometer == null || mGyroscope == null) {
       Toast toast = Toast.makeText(context, R.string.fail_to_load_imu, Toast.LENGTH_SHORT);
