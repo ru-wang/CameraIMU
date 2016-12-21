@@ -243,7 +243,7 @@ public class MainActivity extends Activity {
       mCamera.autoFocus(null);
     }
     List<String> flashModes = params.getSupportedFlashModes();
-    if (flashModes.contains(Camera.Parameters.FLASH_MODE_OFF))
+    if (flashModes != null && flashModes.contains(Camera.Parameters.FLASH_MODE_OFF))
       params.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
     List<String> whiteBalanceModes = params.getSupportedWhiteBalance();
     if (whiteBalanceModes.contains(Camera.Parameters.WHITE_BALANCE_DAYLIGHT))
