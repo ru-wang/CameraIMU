@@ -8,6 +8,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Environment;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -56,8 +57,16 @@ public class MainActivity extends Activity {
     Log.i(TAG, "onCreate");
     super.onCreate(savedInstanceState);
 
+    DisplayMetrics dm = getResources().getDisplayMetrics();
+    int screenW = dm.widthPixels;
+    int screenH = dm.heightPixels;
+
+    if (screenW * 3 == screenH * 4)
+      setContentView(R.layout.activity_main_4_3);
+    else
+      setContentView(R.layout.activity_main);
+
     Context context = getApplicationContext();
-    setContentView(R.layout.activity_main);
 
     mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
     mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
