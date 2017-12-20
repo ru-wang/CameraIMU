@@ -6,9 +6,9 @@ import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
+import android.hardware.camera2.CameraAccessException;
 import android.os.Bundle;
 import android.os.Environment;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -57,14 +57,7 @@ public class MainActivity extends Activity {
     Log.i(TAG, "onCreate");
     super.onCreate(savedInstanceState);
 
-    DisplayMetrics dm = getResources().getDisplayMetrics();
-    int screenW = dm.widthPixels;
-    int screenH = dm.heightPixels;
-
-    if (screenW * 3 == screenH * 4)
-      setContentView(R.layout.activity_main_4_3);
-    else
-      setContentView(R.layout.activity_main);
+    setContentView(R.layout.activity_main);
 
     Context context = getApplicationContext();
 
@@ -185,7 +178,7 @@ public class MainActivity extends Activity {
         mDateString = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)).format(Calendar.getInstance().getTime());
         mStorageDir = getResources().getString(R.string.app_name) + File.separator + mDateString;
         File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-                             mStorageDir + File.separator + "IMG");
+            mStorageDir + File.separator + "IMG");
         if (!file.mkdirs()) {
           Context context = getApplicationContext();
           Toast toast = Toast.makeText(context, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);

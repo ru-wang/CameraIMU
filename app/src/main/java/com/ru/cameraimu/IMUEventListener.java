@@ -61,7 +61,7 @@ public class IMUEventListener implements SensorEventListener {
 
       String filename = String.format(Locale.US, mType + "%08d.txt", mSerializedSequencesNum++);
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-                           mActivity.mStorageDir + File.separator + filename);
+          mActivity.mStorageDir + File.separator + filename);
 
       // Write file
       try {

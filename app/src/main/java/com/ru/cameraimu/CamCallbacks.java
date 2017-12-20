@@ -48,7 +48,7 @@ public class CamCallbacks {
     private void recordPicture(byte[] data, Camera camera, long timestampMillis) {
       String filename = String.format(Locale.US, "%013d.jpg", timestampMillis);
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-                           mActivity.mStorageDir + File.separator + "IMG" + File.separator + filename);
+          mActivity.mStorageDir + File.separator + "IMG" + File.separator + filename);
 
       // Write file
       try {
@@ -106,7 +106,7 @@ public class CamCallbacks {
       YuvImage img = new YuvImage(data, ImageFormat.NV21, w, h, null);
       String filename = String.format(Locale.US, "%013d.jpg", timestampMillis);
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-                           mActivity.mStorageDir + File.separator + "IMG" + File.separator + filename);
+          mActivity.mStorageDir + File.separator + "IMG" + File.separator + filename);
 
       try {
         FileOutputStream fos = new FileOutputStream(file);
