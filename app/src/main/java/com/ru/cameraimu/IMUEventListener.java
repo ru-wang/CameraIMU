@@ -14,61 +14,62 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.Locale;
 
-public class IMUEventListener implements SensorEventListener {
+class IMUEventListener implements SensorEventListener {
 
-  public enum TypeE {
-    G,  // GYROSCOPE
-    A,  // ACCELEROMETER
-  }
+  enum SensorType { GYRO, ACCE }
 
-  public class DataTupleT {
-    private float vx;
-    private float vy;
-    private float vz;
-    private long timestampNanos;
+  static class SensorReading {
+    private float mx, my, mz;
+    private long mTimestampNanos;
 
-    DataTupleT(float[] v, long timestamp) {
-      vx = v[0];
-      vy = v[1];
-      vz = v[2];
-      this.timestampNanos = timestamp;
+    SensorReading(float[] v, long timestamp) {
+      mx = v[0]; my = v[1]; mz = v[2];
+      this.mTimestampNanos = timestamp;
     }
 
-    DataTupleT(float vx, float vy, float vz, long timestamp) {
-      this.vx = vx;
-      this.vy = vy;
-      this.vz = vz;
-      this.timestampNanos = timestamp;
+    SensorReading(float vx, float vy, float vz, long timestamp) {
+      this.mx = vx; this.my = vy; this.mz = vz;
+      this.mTimestampNanos = timestamp;
     }
 
     @Override
     public String toString() {
-      return String.format(Locale.US, "%08.6f %08.6f %08.6f %d\n", vx, vy, vz, timestampNanos);
+      return String.format(Locale.US, "%d %f %f %f\n", mTimestampNanos, mx, my, mz);
     }
 
-    public float x() { return vx; }
-    public float y() { return vy; }
-    public float z() { return vz; }
+    float x() { return mx; }
+    float y() { return my; }
+    float z() { return mz; }
   }
 
-  private class OutputAsyncTask extends AsyncTask<LinkedList<?>, Void, Void> {
-    @Override @SuppressWarnings("unchecked")
-    protected Void doInBackground(LinkedList<?>... params) {
-      LinkedList<DataTupleT> sequenceToBeSerialized = (LinkedList<DataTupleT>) (params[0]);
+  static class WriteSensorAsyncTask extends AsyncTask<ArrayList<?>, Void, Void> {
+    String mPrefix;
+    SensorType mType;
+    int mSerializedSequencesNum;
 
-      String filename = String.format(Locale.US, mType + "%08d.txt", mSerializedSequencesNum++);
+    WriteSensorAsyncTask(String prefix, SensorType type, int serializedSequencesNum) {
+      mPrefix = prefix;
+      mType = type;
+      mSerializedSequencesNum = serializedSequencesNum;
+    }
+
+    protected Void doInBackground(ArrayList<?>... params) {
+      ArrayList<?> sequenceToBeSerialized = params[0];
+
+      String type = mType.toString().toLowerCase();
+      String filename = String.format(Locale.US, type + "_%010d.txt", mSerializedSequencesNum);
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-          mActivity.mStorageDir + File.separator + filename);
+          mPrefix + File.separator + filename);
 
       // Write file
       try {
         FileOutputStream fos = new FileOutputStream(file);
         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fos));
-        for (DataTupleT tuple : sequenceToBeSerialized)
-          writer.write(tuple.toString());
+        for (Object reading : sequenceToBeSerialized)
+          writer.write(reading.toString());
         writer.flush();
         writer.close();
       } catch (IOException e) {
@@ -81,33 +82,33 @@ public class IMUEventListener implements SensorEventListener {
 
   // Upper size limit of a single data sequence
   // A write operation is executed when this is reached
-  private final int SINGLE_SEQUENCE_LIMIT = 500;
+  private static final int SINGLE_SEQUENCE_LIMIT = 10000;
 
   private int mSerializedSequencesNum = 0;
 
   private MainActivity mActivity;
-  private TypeE mType;
-  private DataTupleT mCurrentTuple;
-  private LinkedList<DataTupleT> mSequence;
+  private SensorType mType;
+  private SensorReading mCurrentReading;
+  private ArrayList<SensorReading> mSequence;
 
-  private final String TAG = "TAG/CameraIMU";
+  private static final String TAG = "TAG/CameraIMU";
 
-  public IMUEventListener(MainActivity activity, TypeE type) {
+  IMUEventListener(MainActivity activity, SensorType type) {
     mActivity = activity;
     mType = type;
-    mCurrentTuple = new DataTupleT(0, 0, 0, 0);
+    mCurrentReading = new SensorReading(0, 0, 0, 0);
     mSequence = null;
   }
 
   @Override
   public void onSensorChanged(SensorEvent event) {
-    if (mActivity.NEED_RECORD && mActivity.isCapturing())
+    if (mActivity.isCapturing())
       recordData(event.values, event.timestamp);
 
-    mCurrentTuple.vx = event.values[0];
-    mCurrentTuple.vy = event.values[1];
-    mCurrentTuple.vz = event.values[2];
-    mCurrentTuple.timestampNanos = event.timestamp;
+    mCurrentReading.mx = event.values[0];
+    mCurrentReading.my = event.values[1];
+    mCurrentReading.mz = event.values[2];
+    mCurrentReading.mTimestampNanos = event.timestamp;
 
     mActivity.printSensorInfo(event.timestamp);
   }
@@ -134,35 +135,39 @@ public class IMUEventListener implements SensorEventListener {
     }
 
     String s;
-    if (mType == TypeE.A)
+    if (mType == SensorType.ACCE)
       s = (String) (mActivity.getResources().getText(R.string.acce_accuracy_changed_to));
     else
       s = (String) (mActivity.getResources().getText(R.string.gyro_accuracy_changed_to));
     Toast.makeText(mActivity.getApplicationContext(), s + accuracyChars, Toast.LENGTH_SHORT).show();
   }
 
-  public DataTupleT getCurrentTuple() { return mCurrentTuple; }
+  SensorReading getCurrentReading() {
+    return mCurrentReading;
+  }
 
-  public void flushData() {
+  void flushData() {
     // Instantiate an AsyncTask to flush the data onto the disk
     // in order to prevent blocking
-    LinkedList<DataTupleT> asyncSequence = mSequence;
+    ArrayList<SensorReading> readings = mSequence;
     mSequence = null;
-    new OutputAsyncTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, asyncSequence);
+    new WriteSensorAsyncTask(mActivity.getStorageDir(), mType, mSerializedSequencesNum++)
+        .execute(readings);
   }
 
   private void recordData(float[] v, long timestampNanos) {
     if (mSequence == null)
-      mSequence = new LinkedList<DataTupleT>();
-    mSequence.add(new DataTupleT(v, timestampNanos));
+      mSequence = new ArrayList<>();
+    mSequence.add(new SensorReading(v, timestampNanos));
 
     // When a single data sequence reached its upper limit
     // instantiate an AsyncTask to execute the writing
     // in order to prevent blocking
     if (mSequence.size() == SINGLE_SEQUENCE_LIMIT) {
-      LinkedList<DataTupleT> asyncSequence = mSequence;
-      mSequence = new LinkedList<DataTupleT>();
-      new OutputAsyncTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, asyncSequence);
+      ArrayList<SensorReading> readings = mSequence;
+      mSequence = new ArrayList<>();
+      new WriteSensorAsyncTask(mActivity.getStorageDir(), mType, mSerializedSequencesNum++)
+          .execute(readings);
     }
   }
 }

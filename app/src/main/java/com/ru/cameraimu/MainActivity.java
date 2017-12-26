@@ -6,13 +6,13 @@ import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
-import android.hardware.camera2.CameraAccessException;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,13 +24,9 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
 
-  public static final boolean NEED_RECORD = true;
-  public static final int DEFAULT_CAPTURE_W = 640;
-  public static final int DEFAULT_CAPTURE_H = 480;
-  public static final int INFO_VIEW_UPDATE_RATE = 10;
+  static final int INFO_VIEW_UPDATE_RATE = 5;
 
-  public String mDateString;
-  public String mStorageDir;
+  private static final String TAG = "TAG/CameraIMU";
 
   // Sensor
   private Sensor mGyroscope;
@@ -40,17 +36,16 @@ public class MainActivity extends Activity {
   private SensorManager mSensorManager;
 
   // Camera
+  private boolean mIsCapturing = false;
   private Camera mCamera;
-  private Boolean mIsCapturing = false;
-  private CamCallbacks.ShutterCallback mShutterCallback;
-  private CamCallbacks.PictureCallback mPictureCallback;
+  private Camera.Size mPreviewSize = null;
+  private Camera.Size mCaptureSize = null;
   private CamCallbacks.PreviewCallback mPreviewCallback;
 
   // UI
+  private String mStorageDir;
   private TextView mInfoView;
-
-  // Debug
-  private final String TAG = "TAG/CameraIMU";
+  private Switch mCamSwitch;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -58,29 +53,26 @@ public class MainActivity extends Activity {
     super.onCreate(savedInstanceState);
 
     setContentView(R.layout.activity_main);
-
-    Context context = getApplicationContext();
-
     mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
     mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
     mGyroscope = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE_UNCALIBRATED);
 
     if (mAccelerometer == null || mGyroscope == null) {
-      Toast toast = Toast.makeText(context, R.string.fail_to_load_imu, Toast.LENGTH_SHORT);
+      Toast toast = Toast.makeText(this, R.string.fail_to_load_imu, Toast.LENGTH_LONG);
       toast.show();
       finish();
       return;
     }
 
-    if (!isExternalStorageWritable() && NEED_RECORD) {
-      Toast toast = Toast.makeText(context, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);
+    if (!isExternalStorageWritable()) {
+      Toast toast = Toast.makeText(this, R.string.failed_to_access_external_storage, Toast.LENGTH_LONG);
       toast.show();
       finish();
       return;
     }
 
     if (!checkCamera()) {
-      Toast toast = Toast.makeText(context, R.string.failed_to_access_camere, Toast.LENGTH_SHORT);
+      Toast toast = Toast.makeText(this, R.string.failed_to_access_camere, Toast.LENGTH_LONG);
       toast.show();
       finish();
       return;
@@ -88,19 +80,21 @@ public class MainActivity extends Activity {
 
     getCameraInstance();
     if (mCamera == null) {
-      Toast toast = Toast.makeText(context, R.string.failed_to_access_camere, Toast.LENGTH_SHORT);
+      Toast toast = Toast.makeText(this, R.string.failed_to_access_camere, Toast.LENGTH_LONG);
       toast.show();
       finish();
     }
 
-    mGyroListener = new IMUEventListener(this, IMUEventListener.TypeE.G);
-    mAcceListener = new IMUEventListener(this, IMUEventListener.TypeE.A);
+    mGyroListener = new IMUEventListener(this, IMUEventListener.SensorType.GYRO);
+    mAcceListener = new IMUEventListener(this, IMUEventListener.SensorType.ACCE);
+    mCamSwitch = findViewById(R.id.cam_sw);
+    mCamSwitch.setOnCheckedChangeListener(new CamCallbacks.CamSwitchListener(this));
 
-    ((FrameLayout) findViewById(R.id.cam_layout)).addView(new CamPreview(context, mCamera));
-    mInfoView = (TextView) findViewById(R.id.info_view);
+    if (mCamSwitch.isChecked())
+      ((FrameLayout) findViewById(R.id.cam_layout)).addView(new CamPreview(this, mCamera));
 
-    mShutterCallback = new CamCallbacks.ShutterCallback();
-    mPictureCallback = new CamCallbacks.PictureCallback(this);
+    mInfoView = findViewById(R.id.info_view);
+
     mPreviewCallback = new CamCallbacks.PreviewCallback(this);
   }
 
@@ -121,8 +115,13 @@ public class MainActivity extends Activity {
     setCamFeatures();
 
     Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
+    Camera.Size captureSize = mCamera.getParameters().getPictureSize();
     Context context = getApplicationContext();
-    Toast toast = Toast.makeText(context, previewSize.width + " x " + previewSize.height, Toast.LENGTH_LONG);
+    Toast toast = Toast.makeText(
+        context,
+        "preview " + previewSize.width + " x " + previewSize.height + "\n" +
+        "capture " + captureSize.width + " x " + captureSize.height,
+        Toast.LENGTH_LONG);
     toast.setGravity(Gravity.CENTER, 0, 0);
     toast.show();
   }
@@ -149,61 +148,68 @@ public class MainActivity extends Activity {
     super.onDestroy();
   }
 
-  public Boolean isCapturing() {
-    synchronized (mIsCapturing) {
-      return mIsCapturing;
-    }
-  }
-
-  public CamCallbacks.ShutterCallback getShutterCallback() { return mShutterCallback; }
-  public CamCallbacks.PictureCallback getPictureCallback() { return mPictureCallback; }
-
-  public void printSensorInfo(long timestampNanos) {
-    mInfoView.setText("Sensor Information:\n");
-
-    IMUEventListener.DataTupleT gyroData = mGyroListener.getCurrentTuple();
-    IMUEventListener.DataTupleT acceData = mAcceListener.getCurrentTuple();
-
-    mInfoView.append(String.format(Locale.US, "GX: %08.6f\t\tAX: %08.6f\n", gyroData.x(), acceData.x()));
-    mInfoView.append(String.format(Locale.US, "GY: %08.6f\t\tAY: %08.6f\n", gyroData.y(), acceData.y()));
-    mInfoView.append(String.format(Locale.US, "GZ: %08.6f\t\tAZ: %08.6f\n", gyroData.z(), acceData.z()));
-    mInfoView.append(String.format(Locale.US, "Timestamp Nanos: %d", timestampNanos));
-    if (mIsCapturing)
-      mInfoView.append(String.format(Locale.US, "\nCurrent FPS: %.2f", mPreviewCallback.getCurrentFPS()));
-  }
-
   public void onCaptureBtnClick(View view) {
     if (!mIsCapturing) {
-      if (NEED_RECORD) {
-        mDateString = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)).format(Calendar.getInstance().getTime());
-        mStorageDir = getResources().getString(R.string.app_name) + File.separator + mDateString;
-        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-            mStorageDir + File.separator + "IMG");
-        if (!file.mkdirs()) {
-          Context context = getApplicationContext();
-          Toast toast = Toast.makeText(context, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);
-          toast.show();
-          return;
-        }
+      Switch cam_switch = findViewById(R.id.cam_sw);
+      cam_switch.setEnabled(false);
+
+      String date = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)).format(Calendar.getInstance().getTime());
+      mStorageDir = getResources().getString(R.string.app_name) + File.separator + date;
+      File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+          mStorageDir + File.separator + "IMG");
+      if (!file.mkdirs()) {
+        Context context = getApplicationContext();
+        Toast toast = Toast.makeText(context, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);
+        toast.show();
+        return;
       }
 
-      synchronized (mIsCapturing) { mIsCapturing = true; }
+      mIsCapturing = true;
 
       Context context = getApplicationContext();
       Toast toast = Toast.makeText(context, R.string.start_capturing_msg, Toast.LENGTH_SHORT);
       toast.show();
       mCamera.setPreviewCallback(mPreviewCallback);
     } else {
-      synchronized (mIsCapturing) { mIsCapturing = false; }
+      Switch cam_switch = findViewById(R.id.cam_sw);
+      cam_switch.setEnabled(true);
 
       Context context = getApplicationContext();
       Toast toast = Toast.makeText(context, R.string.stop_capturing_msg, Toast.LENGTH_SHORT);
       toast.show();
       mCamera.setPreviewCallback(null);
-      if (NEED_RECORD) {
-        mGyroListener.flushData();
-        mAcceListener.flushData();
-      }
+      mGyroListener.flushData();
+      mAcceListener.flushData();
+    }
+  }
+
+  String getStorageDir() {
+    return mStorageDir;
+  }
+
+  Camera getCamera() {
+    return mCamera;
+  }
+
+  boolean isCapturing() {
+    return mIsCapturing;
+  }
+
+  void printSensorInfo(long timestampNanos) {
+    mInfoView.setText("sensor info:\n");
+
+    IMUEventListener.SensorReading gyroData = mGyroListener.getCurrentReading();
+    IMUEventListener.SensorReading acceData = mAcceListener.getCurrentReading();
+
+    mInfoView.append(String.format(Locale.US, "gyro: %6.2f\t%6.2f\t%6.2f\n", acceData.x(), acceData.y(), acceData.z()));
+    mInfoView.append(String.format(Locale.US, "acce: %6.2f\t%6.2f\t%6.2f\n", gyroData.x(), gyroData.y(), gyroData.z()));
+    mInfoView.append(String.format(Locale.US, "nanos: %d", timestampNanos));
+    if (mIsCapturing && mCamSwitch.isChecked()) {
+      if (mPreviewSize != null)
+        mInfoView.append(String.format(Locale.US, "\npreview: %dx%d", mPreviewSize.width, mPreviewSize.height));
+      if (mCaptureSize != null)
+        mInfoView.append(String.format(Locale.US, "\ncapture: %dx%d", mCaptureSize.width, mCaptureSize.height));
+      mInfoView.append(String.format(Locale.US, "\nfps: %.2f", mPreviewCallback.getCurrentFPS()));
     }
   }
 
@@ -213,10 +219,7 @@ public class MainActivity extends Activity {
   }
 
   private boolean checkCamera() {
-    if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA))
-      return true;
-    else
-      return false;
+    return getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA);
   }
 
   private void getCameraInstance() {
@@ -251,8 +254,32 @@ public class MainActivity extends Activity {
     if (whiteBalanceModes.contains(Camera.Parameters.WHITE_BALANCE_DAYLIGHT))
       params.setWhiteBalance(Camera.Parameters.WHITE_BALANCE_DAYLIGHT);
 
-    params.setPreviewSize(DEFAULT_CAPTURE_W, DEFAULT_CAPTURE_H);
-    params.setPictureSize(DEFAULT_CAPTURE_W, DEFAULT_CAPTURE_H);
+    List<Camera.Size> preview_sizes = params.getSupportedPreviewSizes();
+    List<Camera.Size> capture_sizes = params.getSupportedPictureSizes();
+    mPreviewSize = preview_sizes.get(0);
+    mCaptureSize = capture_sizes.get(0);
+
+    for (Camera.Size size : preview_sizes) {
+      if (size.height >= mPreviewSize.height &&
+          size.width >= mPreviewSize.width) {
+        mPreviewSize.width = size.width;
+        mPreviewSize.height = size.height;
+      }
+    }
+
+    for (Camera.Size size : capture_sizes) {
+      if (size.width * mPreviewSize.height == size.height * mPreviewSize.width) {
+        if (mCaptureSize.height <= mPreviewSize.height &&
+            mCaptureSize.height <= size.height)
+          mCaptureSize = size;
+        else if (mPreviewSize.height <= size.height &&
+                 mCaptureSize.height >= size.height)
+          mCaptureSize = size;
+      }
+    }
+
+    params.setPreviewSize(mPreviewSize.width, mPreviewSize.height);
+    params.setPictureSize(mCaptureSize.width, mCaptureSize.height);
 
     mCamera.setParameters(params);
   }

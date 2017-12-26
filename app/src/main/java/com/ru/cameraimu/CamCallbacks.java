@@ -7,53 +7,48 @@ import android.hardware.Camera;
 import android.os.AsyncTask;
 import android.os.Environment;
 import android.util.Log;
+import android.widget.CompoundButton;
+import android.widget.FrameLayout;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Locale;
 
-public class CamCallbacks {
+class CamCallbacks {
+  private static long mLastTimestampNanos = -1;
+  private static final String TAG = "TAG/CameraIMU";
 
-  private static long mLastTimestampNanos;
+  private static class SavePictureAyncTask extends AsyncTask<byte[], Void, Void> {
+    private String mPrefix;
+    private int mFrameW, mFrameH;
+    private long mTimestampNanos;
 
-  static { mLastTimestampNanos = -1; }
-
-  public static class ShutterCallback implements Camera.ShutterCallback {
-    @Override
-    public void onShutter() {
-      mLastTimestampNanos = System.nanoTime();
-    }
-  }
-
-  public static class PictureCallback implements Camera.PictureCallback {
-    private MainActivity mActivity;
-
-    private final String TAG = "TAG/CameraIMU";
-
-    public PictureCallback(MainActivity activity) { mActivity = activity; }
-
-    @Override
-    public void onPictureTaken(byte[] data, Camera camera) {
-      long timestampMillis = mLastTimestampNanos;
-      if (mActivity.NEED_RECORD && mActivity.isCapturing())
-        recordPicture(data, camera, timestampMillis);
-
-      // Take pictures continuously
-      camera.startPreview();
-      if (mActivity.isCapturing())
-        camera.takePicture(mActivity.getShutterCallback(), null, mActivity.getPictureCallback());
+    private SavePictureAyncTask(String prefix, int frameW, int frameH, long timestampNanos) {
+      mPrefix = prefix;
+      mFrameW = frameW;
+      mFrameH = frameH;
+      mTimestampNanos = timestampNanos;
     }
 
-    private void recordPicture(byte[] data, Camera camera, long timestampMillis) {
+    @Override
+    protected Void doInBackground(byte[]... params) {
+      byte[] data = params[0];
+      compressAndSaveAsJPEG(data, mFrameW, mFrameH, mTimestampNanos);
+      return null;
+    }
+
+    private void compressAndSaveAsJPEG(byte[] data, int w, int h, long timestampMillis) {
+      // Note: The default original data is in NV21 format
+      YuvImage img = new YuvImage(data, ImageFormat.NV21, w, h, null);
       String filename = String.format(Locale.US, "%013d.jpg", timestampMillis);
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-          mActivity.mStorageDir + File.separator + "IMG" + File.separator + filename);
+          mPrefix + File.separator + "IMG" + File.separator + filename);
 
-      // Write file
       try {
         FileOutputStream fos = new FileOutputStream(file);
-        fos.write(data);
+        if (!img.compressToJpeg(new Rect(0, 0, w, h), 95, fos))
+          Log.e(TAG, "compressAndSaveAsJPEG: Failed to compress image!");
         fos.close();
       } catch (IOException e) {
         Log.e(TAG, "recordPicture: " + e.getMessage());
@@ -61,35 +56,31 @@ public class CamCallbacks {
     }
   }
 
-  public static class PreviewCallback implements Camera.PreviewCallback {
+  static class PreviewCallback implements Camera.PreviewCallback {
     private MainActivity mActivity;
     private float mCurrentFPS = 0f;
     private int mLocalFrameCount = 0;
 
-    private final String TAG = "TAG/CameraIMU";
-
-    public PreviewCallback(MainActivity activity) { mActivity = activity; }
+    PreviewCallback(MainActivity activity) {
+      mActivity = activity;
+    }
 
     @Override
     public void onPreviewFrame(byte[] data, Camera camera) {
-      final long timestampNanos = System.nanoTime();
-      final int frameW = camera.getParameters().getPreviewSize().width;
-      final int frameH = camera.getParameters().getPreviewSize().height;
-      if (mActivity.NEED_RECORD && mActivity.isCapturing()) {
+      long timestampNanos = System.nanoTime();
+      if (mActivity.isCapturing()) {
         // Instantiate an AsyncTask to do the compressing and saving jobs
         // in order to prevent blocking
-        new AsyncTask<byte[], Void, Void>() {
-          @Override
-          protected Void doInBackground(byte[]... params) {
-            byte[] data = params[0];
-            compressAndSaveAsJPEG(data, frameW, frameH, timestampNanos);
-            return null;
-          }
-        }.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, data);
+        new SavePictureAyncTask(
+            mActivity.getStorageDir(),
+            camera.getParameters().getPreviewSize().width,
+            camera.getParameters().getPreviewSize().height,
+            timestampNanos
+        ).execute(data);
       }
 
       if (mLastTimestampNanos == -1) {
-        mCurrentFPS = 0f;
+        mCurrentFPS = 0;
         mLastTimestampNanos = timestampNanos;
       } else {
         ++mLocalFrameCount;
@@ -101,23 +92,27 @@ public class CamCallbacks {
       }
     }
 
-    private void compressAndSaveAsJPEG(byte[] data, int w, int h, long timestampMillis) {
-      // Note: The default original data is in NV21 format
-      YuvImage img = new YuvImage(data, ImageFormat.NV21, w, h, null);
-      String filename = String.format(Locale.US, "%013d.jpg", timestampMillis);
-      File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-          mActivity.mStorageDir + File.separator + "IMG" + File.separator + filename);
+    float getCurrentFPS() {
+      return mCurrentFPS;
+    }
+  }
 
-      try {
-        FileOutputStream fos = new FileOutputStream(file);
-        if (!img.compressToJpeg(new Rect(0, 0, w, h), 95, fos))
-          Log.e(TAG, "compressAndSaveAsJPEG: Failed to compress image!");
-        fos.close();
-      } catch (IOException e) {
-        Log.e(TAG, "recordPicture: " + e.getMessage());
-      }
+  static class CamSwitchListener implements CompoundButton.OnCheckedChangeListener {
+    MainActivity mActivity;
+
+    CamSwitchListener(MainActivity activity) {
+      mActivity = activity;
     }
 
-    public float getCurrentFPS() { return mCurrentFPS; }
+    @Override
+    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+      if (isChecked) {
+        FrameLayout layout = mActivity.findViewById(R.id.cam_layout);
+        layout.addView(new CamPreview(mActivity, mActivity.getCamera()));
+      } else {
+        FrameLayout layout = mActivity.findViewById(R.id.cam_layout);
+        layout.removeAllViews();
+      }
+    }
   }
 }
