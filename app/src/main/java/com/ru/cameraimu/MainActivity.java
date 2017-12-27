@@ -177,8 +177,6 @@ public class MainActivity extends Activity {
         mCamera.setPreviewCallback(null);
 
       mIsCapturing = false;
-      mGyroListener.reset();
-      mAcceListener.reset();
       mPreviewCallback.reset();
     }
   }
@@ -229,8 +227,8 @@ public class MainActivity extends Activity {
     IMUEventListener.SensorReading gyroData = mGyroListener.getCurrentReading();
     IMUEventListener.SensorReading acceData = mAcceListener.getCurrentReading();
 
-    mInfoView.append(String.format(Locale.US, "gyro: %6.2f\t%6.2f\t%6.2f\n", acceData.x(), acceData.y(), acceData.z()));
-    mInfoView.append(String.format(Locale.US, "acce: %6.2f\t%6.2f\t%6.2f\n", gyroData.x(), gyroData.y(), gyroData.z()));
+    mInfoView.append(String.format(Locale.US, "gyro: %6.2f\t%6.2f\t%6.2f\n", gyroData.x(), gyroData.y(), gyroData.z()));
+    mInfoView.append(String.format(Locale.US, "acce: %6.2f\t%6.2f\t%6.2f\n", acceData.x(), acceData.y(), acceData.z()));
     mInfoView.append(String.format(Locale.US, "nanos: %d", timestampNanos));
     if (mIsCapturing && mCamSwitch.isChecked()) {
       if (mPreviewSize != null)

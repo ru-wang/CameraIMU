@@ -14,6 +14,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Locale;
 
@@ -48,19 +50,18 @@ class IMUEventListener implements SensorEventListener {
   static class WriteSensorAsyncTask extends AsyncTask<LinkedList<?>, Void, Void> {
     String mPrefix;
     SensorType mType;
-    int mSerializedSequencesNum;
 
-    WriteSensorAsyncTask(String prefix, SensorType type, int serializedSequencesNum) {
+    WriteSensorAsyncTask(String prefix, SensorType type) {
       mPrefix = prefix;
       mType = type;
-      mSerializedSequencesNum = serializedSequencesNum;
     }
 
     protected Void doInBackground(LinkedList<?>... params) {
       LinkedList<?> sequenceToBeSerialized = params[0];
 
       String type = mType.toString().toLowerCase();
-      String filename = String.format(Locale.US, type + "_%010d.txt", mSerializedSequencesNum);
+      String date = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)).format(Calendar.getInstance().getTime());
+      String filename = type + "_" + date + ".txt";
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
                            mPrefix + File.separator + filename);
 
@@ -83,8 +84,6 @@ class IMUEventListener implements SensorEventListener {
   // Upper size limit of a single data sequence
   // A write operation is executed when this is reached
   private static final int SINGLE_SEQUENCE_LIMIT = 300000;
-
-  private int mSerializedSequencesNum = 0;
 
   private MainActivity mActivity;
   private SensorType mType;
@@ -142,10 +141,6 @@ class IMUEventListener implements SensorEventListener {
     Toast.makeText(mActivity.getApplicationContext(), s + accuracyChars, Toast.LENGTH_SHORT).show();
   }
 
-  void reset() {
-    mSerializedSequencesNum = 0;
-  }
-
   SensorReading getCurrentReading() {
     return mCurrentReading;
   }
@@ -155,8 +150,7 @@ class IMUEventListener implements SensorEventListener {
     // in order to prevent blocking
     LinkedList<SensorReading> readings = mSequence;
     mSequence = null;
-    new WriteSensorAsyncTask(mActivity.getStorageDir(), mType, mSerializedSequencesNum++)
-        .execute(readings);
+    new WriteSensorAsyncTask(mActivity.getStorageDir(), mType).execute(readings);
   }
 
   private void recordData(float[] v, long timestampNanos) {
@@ -170,8 +164,7 @@ class IMUEventListener implements SensorEventListener {
     if (mSequence.size() == SINGLE_SEQUENCE_LIMIT) {
       LinkedList<SensorReading> readings = mSequence;
       mSequence = new LinkedList<>();
-      new WriteSensorAsyncTask(mActivity.getStorageDir(), mType, mSerializedSequencesNum++)
-          .execute(readings);
+      new WriteSensorAsyncTask(mActivity.getStorageDir(), mType).execute(readings);
     }
   }
 }
