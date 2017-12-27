@@ -82,7 +82,7 @@ class IMUEventListener implements SensorEventListener {
 
   // Upper size limit of a single data sequence
   // A write operation is executed when this is reached
-  private static final int SINGLE_SEQUENCE_LIMIT = 10000;
+  private static final int SINGLE_SEQUENCE_LIMIT = 300000;
 
   private int mSerializedSequencesNum = 0;
 
@@ -155,7 +155,6 @@ class IMUEventListener implements SensorEventListener {
     // in order to prevent blocking
     LinkedList<SensorReading> readings = mSequence;
     mSequence = null;
-    Log.i(TAG, "Flushing " + readings.size() + mType.toString() + "s");
     new WriteSensorAsyncTask(mActivity.getStorageDir(), mType, mSerializedSequencesNum++)
         .execute(readings);
   }
