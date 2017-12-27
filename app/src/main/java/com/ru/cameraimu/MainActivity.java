@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
   private String mStorageDir;
   private TextView mInfoView;
   private Switch mCamSwitch;
+  private CamCallbacks.CamSwitchListener mCamSwitchListener;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -87,8 +88,9 @@ public class MainActivity extends Activity {
 
     mGyroListener = new IMUEventListener(this, IMUEventListener.SensorType.GYRO);
     mAcceListener = new IMUEventListener(this, IMUEventListener.SensorType.ACCE);
+    mCamSwitchListener = new CamCallbacks.CamSwitchListener(this);
     mCamSwitch = findViewById(R.id.cam_sw);
-    mCamSwitch.setOnCheckedChangeListener(new CamCallbacks.CamSwitchListener(this));
+    mCamSwitch.setOnCheckedChangeListener(mCamSwitchListener);
 
     if (mCamSwitch.isChecked())
       ((FrameLayout) findViewById(R.id.cam_layout)).addView(new CamPreview(this, mCamera));
@@ -111,19 +113,8 @@ public class MainActivity extends Activity {
     mSensorManager.registerListener(mGyroListener, mGyroscope, SensorManager.SENSOR_DELAY_FASTEST);
     mSensorManager.registerListener(mAcceListener, mAccelerometer, SensorManager.SENSOR_DELAY_FASTEST);
 
-    getCameraInstance();
-    setCamFeatures();
-
-    Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
-    Camera.Size captureSize = mCamera.getParameters().getPictureSize();
-    Context context = getApplicationContext();
-    Toast toast = Toast.makeText(
-        context,
-        "preview " + previewSize.width + " x " + previewSize.height + "\n" +
-        "capture " + captureSize.width + " x " + captureSize.height,
-        Toast.LENGTH_LONG);
-    toast.setGravity(Gravity.CENTER, 0, 0);
-    toast.show();
+    if (mCamera != null)
+      startCamera();
   }
 
   @Override
@@ -133,7 +124,8 @@ public class MainActivity extends Activity {
     mSensorManager.unregisterListener(mGyroListener);
     mSensorManager.unregisterListener(mAcceListener);
 
-    releaseCamera();
+    if (mCamera != null)
+      releaseCamera();
   }
 
   @Override
@@ -152,34 +144,42 @@ public class MainActivity extends Activity {
     if (!mIsCapturing) {
       Switch cam_switch = findViewById(R.id.cam_sw);
       cam_switch.setEnabled(false);
+      Toast toast = Toast.makeText(this, R.string.start_capturing_msg, Toast.LENGTH_SHORT);
+      toast.show();
 
       String date = (new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)).format(Calendar.getInstance().getTime());
       mStorageDir = getResources().getString(R.string.app_name) + File.separator + date;
-      File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-          mStorageDir + File.separator + "IMG");
+      File file;
+      if (mCamera != null) {
+        file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+                        mStorageDir + File.separator + "IMG");
+        mCamera.setPreviewCallback(mPreviewCallback);
+      } else {
+        file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+                        mStorageDir);
+      }
       if (!file.mkdirs()) {
-        Context context = getApplicationContext();
-        Toast toast = Toast.makeText(context, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);
+        toast = Toast.makeText(this, R.string.failed_to_access_external_storage, Toast.LENGTH_SHORT);
         toast.show();
         return;
       }
 
       mIsCapturing = true;
-
-      Context context = getApplicationContext();
-      Toast toast = Toast.makeText(context, R.string.start_capturing_msg, Toast.LENGTH_SHORT);
-      toast.show();
-      mCamera.setPreviewCallback(mPreviewCallback);
     } else {
       Switch cam_switch = findViewById(R.id.cam_sw);
       cam_switch.setEnabled(true);
-
-      Context context = getApplicationContext();
-      Toast toast = Toast.makeText(context, R.string.stop_capturing_msg, Toast.LENGTH_SHORT);
+      Toast toast = Toast.makeText(this, R.string.stop_capturing_msg, Toast.LENGTH_SHORT);
       toast.show();
-      mCamera.setPreviewCallback(null);
+
       mGyroListener.flushData();
       mAcceListener.flushData();
+      if (mCamera != null)
+        mCamera.setPreviewCallback(null);
+
+      mIsCapturing = false;
+      mGyroListener.reset();
+      mAcceListener.reset();
+      mPreviewCallback.reset();
     }
   }
 
@@ -193,6 +193,34 @@ public class MainActivity extends Activity {
 
   boolean isCapturing() {
     return mIsCapturing;
+  }
+
+  void getCameraInstance() {
+    try {
+      mCamera = Camera.open();
+    } catch (Exception e) {
+      Log.e(TAG, "getCameraInstance: " + e.getMessage());
+    }
+  }
+
+  void startCamera() {
+    setCamFeatures();
+
+    Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
+    Camera.Size captureSize = mCamera.getParameters().getPictureSize();
+    Toast toast = Toast.makeText(
+        this,
+        "preview " + previewSize.width + " x " + previewSize.height + "\n" +
+        "capture " + captureSize.width + " x " + captureSize.height,
+        Toast.LENGTH_LONG);
+    toast.setGravity(Gravity.CENTER, 0, 0);
+    toast.show();
+  }
+
+  void releaseCamera() {
+    mCamera.stopPreview();
+    mCamera.release();
+    mCamera = null;
   }
 
   void printSensorInfo(long timestampNanos) {
@@ -222,31 +250,12 @@ public class MainActivity extends Activity {
     return getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA);
   }
 
-  private void getCameraInstance() {
-    if (mCamera == null) {
-      try {
-        mCamera = Camera.open();
-      } catch (Exception e) {
-        Log.e(TAG, "getCameraInstance: " + e.getMessage());
-      }
-    }
-  }
-
-  private void releaseCamera() {
-    if (mCamera != null) {
-      mCamera.release();
-      mCamera = null;
-    }
-  }
-
   private void setCamFeatures() {
     Camera.Parameters params = mCamera.getParameters();
 
     List<String> focusModes = params.getSupportedFocusModes();
-    if (focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
-      params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
-      mCamera.autoFocus(null);
-    }
+    if (focusModes.contains(Camera.Parameters.FOCUS_MODE_INFINITY))
+      params.setFocusMode(Camera.Parameters.FOCUS_MODE_INFINITY);
     List<String> flashModes = params.getSupportedFlashModes();
     if (flashModes != null && flashModes.contains(Camera.Parameters.FLASH_MODE_OFF))
       params.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);

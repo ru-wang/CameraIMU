@@ -14,7 +14,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.Locale;
 
 class IMUEventListener implements SensorEventListener {
@@ -45,7 +45,7 @@ class IMUEventListener implements SensorEventListener {
     float z() { return mz; }
   }
 
-  static class WriteSensorAsyncTask extends AsyncTask<ArrayList<?>, Void, Void> {
+  static class WriteSensorAsyncTask extends AsyncTask<LinkedList<?>, Void, Void> {
     String mPrefix;
     SensorType mType;
     int mSerializedSequencesNum;
@@ -56,13 +56,13 @@ class IMUEventListener implements SensorEventListener {
       mSerializedSequencesNum = serializedSequencesNum;
     }
 
-    protected Void doInBackground(ArrayList<?>... params) {
-      ArrayList<?> sequenceToBeSerialized = params[0];
+    protected Void doInBackground(LinkedList<?>... params) {
+      LinkedList<?> sequenceToBeSerialized = params[0];
 
       String type = mType.toString().toLowerCase();
       String filename = String.format(Locale.US, type + "_%010d.txt", mSerializedSequencesNum);
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-          mPrefix + File.separator + filename);
+                           mPrefix + File.separator + filename);
 
       // Write file
       try {
@@ -89,7 +89,7 @@ class IMUEventListener implements SensorEventListener {
   private MainActivity mActivity;
   private SensorType mType;
   private SensorReading mCurrentReading;
-  private ArrayList<SensorReading> mSequence;
+  private LinkedList<SensorReading> mSequence;
 
   private static final String TAG = "TAG/CameraIMU";
 
@@ -142,6 +142,10 @@ class IMUEventListener implements SensorEventListener {
     Toast.makeText(mActivity.getApplicationContext(), s + accuracyChars, Toast.LENGTH_SHORT).show();
   }
 
+  void reset() {
+    mSerializedSequencesNum = 0;
+  }
+
   SensorReading getCurrentReading() {
     return mCurrentReading;
   }
@@ -149,23 +153,24 @@ class IMUEventListener implements SensorEventListener {
   void flushData() {
     // Instantiate an AsyncTask to flush the data onto the disk
     // in order to prevent blocking
-    ArrayList<SensorReading> readings = mSequence;
+    LinkedList<SensorReading> readings = mSequence;
     mSequence = null;
+    Log.i(TAG, "Flushing " + readings.size() + mType.toString() + "s");
     new WriteSensorAsyncTask(mActivity.getStorageDir(), mType, mSerializedSequencesNum++)
         .execute(readings);
   }
 
   private void recordData(float[] v, long timestampNanos) {
     if (mSequence == null)
-      mSequence = new ArrayList<>();
+      mSequence = new LinkedList<>();
     mSequence.add(new SensorReading(v, timestampNanos));
 
     // When a single data sequence reached its upper limit
     // instantiate an AsyncTask to execute the writing
     // in order to prevent blocking
     if (mSequence.size() == SINGLE_SEQUENCE_LIMIT) {
-      ArrayList<SensorReading> readings = mSequence;
-      mSequence = new ArrayList<>();
+      LinkedList<SensorReading> readings = mSequence;
+      mSequence = new LinkedList<>();
       new WriteSensorAsyncTask(mActivity.getStorageDir(), mType, mSerializedSequencesNum++)
           .execute(readings);
     }

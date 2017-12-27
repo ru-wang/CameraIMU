@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.Locale;
 
 class CamCallbacks {
-  private static long mLastTimestampNanos = -1;
   private static final String TAG = "TAG/CameraIMU";
 
   private static class SavePictureAyncTask extends AsyncTask<byte[], Void, Void> {
@@ -43,7 +42,7 @@ class CamCallbacks {
       YuvImage img = new YuvImage(data, ImageFormat.NV21, w, h, null);
       String filename = String.format(Locale.US, "%013d.jpg", timestampMillis);
       File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-          mPrefix + File.separator + "IMG" + File.separator + filename);
+                           mPrefix + File.separator + "IMG" + File.separator + filename);
 
       try {
         FileOutputStream fos = new FileOutputStream(file);
@@ -59,6 +58,7 @@ class CamCallbacks {
   static class PreviewCallback implements Camera.PreviewCallback {
     private MainActivity mActivity;
     private float mCurrentFPS = 0f;
+    private long mLastTimestampNanos = -1;
     private int mLocalFrameCount = 0;
 
     PreviewCallback(MainActivity activity) {
@@ -92,6 +92,10 @@ class CamCallbacks {
       }
     }
 
+    void reset() {
+      mLastTimestampNanos = -1;
+    }
+
     float getCurrentFPS() {
       return mCurrentFPS;
     }
@@ -107,11 +111,14 @@ class CamCallbacks {
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
       if (isChecked) {
+        mActivity.getCameraInstance();
+        mActivity.startCamera();
         FrameLayout layout = mActivity.findViewById(R.id.cam_layout);
         layout.addView(new CamPreview(mActivity, mActivity.getCamera()));
       } else {
         FrameLayout layout = mActivity.findViewById(R.id.cam_layout);
         layout.removeAllViews();
+        mActivity.releaseCamera();
       }
     }
   }
